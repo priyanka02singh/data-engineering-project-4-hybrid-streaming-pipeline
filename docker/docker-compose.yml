@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:13
+    container_name: crypto-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: crypto_db
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'b55791a3dea4f45c8108ecfb3d7a46c86217a46c92a4b669fdde8378c2e0'
+
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airflow-webserver:
+    image: apache/airflow:2.7.1
+    container_name: airflow-webserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/crypto_db
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__COMPONENT_INNERTIA: '1'
+      DB_HOST: crypto-postgres
+
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../scripts:/opt/airflow/project-4-crypto-pipeline/scripts
+    ports:
+      - "8084:8080"
+    command: bash -c "airflow db init && airflow webserver"
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.1
+    container_name: airflow-scheduler
+    depends_on:
+      - airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/crypto_db
+      DB_HOST: crypto-postgres
+
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../scripts:/opt/airflow/project-4-crypto-pipeline/scripts
+    command: scheduler
